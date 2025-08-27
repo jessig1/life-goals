@@ -1,14 +1,14 @@
 import os
 import secrets
-from typing import Optional
+from typing import Optional, List
 
-from fastapi import FastAPI, Request, Response, Depends, HTTPException
+from fastapi import FastAPI, Request, Response, Depends, HTTPException, Header, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 import httpx
 from dotenv import load_dotenv
-from fastapi.responses import HTMLResponse
+
 
 
 load_dotenv()
@@ -52,24 +52,32 @@ def index(request: Request):
 
 @app.get("/login")
 def login(request: Request):
-    # CSRF protection with a state value stored in session
     state = secrets.token_urlsafe(24)
     request.session["oauth_state"] = state
 
-    # Request only what we need; `task:add` is sufficient to create tasks.
-    scope = "task:add"
-    params = {
-        "client_id": CLIENT_ID,
-        "scope": scope,
-        "state": state,
-        "redirect_uri": REDIRECT_URI,
-    }
-
-    # Build the auth URL manually to avoid extra deps
-    from urllib.parse import urlencode
-    auth_url = f"{TODOIST_AUTH_URL}?{urlencode(params)}"
-    return RedirectResponse(auth_url, status_code=302)
-
+    # Also set a non-HttpOnly cookie with the same state as a fallback
+    # (HttpOnly=False so you could read it on the client if ever needed,
+    # but you can set it True if you only compare server-side.)
+    resp = RedirectResponse(
+        url=(
+            f"{TODOIST_AUTH_URL}"
+            f"?client_id={CLIENT_ID}"
+            f"&scope=task:add"
+            f"&state={state}"
+            f"&redirect_uri={REDIRECT_URI}"
+        ),
+        status_code=302,
+    )
+    resp.set_cookie(
+        key="oauth_state",
+        value=state,
+        max_age=600,
+        secure=False,      # True in prod over HTTPS
+        httponly=True,     # fine to make True since we only read server-side
+        samesite="lax",
+        path="/"
+    )
+    return resp
 
 @app.get("/oauth/callback")
 async def oauth_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None):
@@ -105,70 +113,92 @@ async def oauth_callback(request: Request, code: Optional[str] = None, state: Op
     request.session["todoist_access_token"] = access_token
     request.session.pop("oauth_state", None)
 
-    return JSONResponse({"ok": True, "message": "Todoist connected! You can now POST /create_task"})
+    return RedirectResponse("http://localhost:5173/auth/complete", status_code=302)
 
 
 @app.post("/create_task")
 async def create_task(
     request: Request,
-    token: str = Depends(get_access_token),
+    x_csrf_token: str | None = Header(None),
 ):
-    """
-    Body (JSON):
-    {
-      "content": "it works!",
-      "due_string": "today at 10:05",
-      "priority": 2,
-      "project_id": "optional",
-      "section_id": "optional"
-    }
-    """
+    # CSRF check
+    expected = request.session.get("csrf")
+    if not expected or not x_csrf_token or x_csrf_token != expected:
+        raise HTTPException(status_code=403, detail="Bad CSRF token")
+
+    # existing auth check
+    token = request.session.get("todoist_access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated with Todoist. Visit /login first.")
+
     payload = await request.json()
     if "content" not in payload or not payload["content"]:
         raise HTTPException(status_code=400, detail="`content` is required")
 
-    # Only pass supported fields to Todoist
-    allowed = {"content", "description", "project_id", "section_id", "parent_id",
-               "order", "labels", "priority", "due_string", "due_date", "due_datetime",
+    allowed = {"content","description","project_id","section_id","parent_id",
+               "order","labels","priority","due_string","due_date","due_datetime",
                "assignee_id"}
     body = {k: v for k, v in payload.items() if k in allowed}
 
     async with httpx.AsyncClient(timeout=20) as client:
         resp = await client.post(
             TODOIST_TASKS_URL,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json=body,
         )
 
     if resp.status_code not in (200, 201):
-        # Surface Todoist's error to the client for easier debugging
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
-
     return JSONResponse(resp.json(), status_code=resp.status_code)
 
-@app.get("/demo", response_class=HTMLResponse)
-def demo():
-    return """
-<!doctype html>
-<html>
-  <body>
-    <button id="make">Create Task</button>
-    <pre id="out"></pre>
-    <script>
-      document.getElementById('make').onclick = async () => {
-        const res = await fetch('/create_task', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          credentials: 'include', // send session cookie
-          body: JSON.stringify({ content: 'Task from demo page', priority: 3 })
-        });
-        document.getElementById('out').textContent =
-          (res.status + ' ' + res.statusText + '\\n') + await res.text();
-      };
-    </script>
-  </body>
-</html>
-"""
+def ensure_csrf_token(request: Request) -> str:
+    token = request.session.get("csrf")
+    if not token:
+        token = secrets.token_urlsafe(24)
+        request.session["csrf"] = token
+    return token
+
+@app.get("/session")
+def get_session(request: Request):
+    """
+    Returns a CSRF token (and indicates auth state).
+    This sets/refreshes the CSRF token in the server-side session.
+    """
+    csrf = ensure_csrf_token(request)
+    authed = "todoist_access_token" in request.session
+    return {"csrf": csrf, "authenticated": authed}
+
+@app.get("/tasks")
+async def list_tasks(
+    request: Request,
+    filter: Optional[str] = None,
+    project_id: Optional[str] = None,
+    section_id: Optional[str] = None,
+    label: Optional[str] = None,
+    ids: Optional[List[str]] = Query(default=None),
+    lang: Optional[str] = None,
+):
+    token = request.session.get("todoist_access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated with Todoist. Visit /login first.")
+
+    params = {}
+    if filter: params["filter"] = filter
+    if project_id: params["project_id"] = project_id
+    if section_id: params["section_id"] = section_id
+    if label: params["label"] = label
+    if ids: params["ids"] = ",".join(ids)  # Todoist accepts comma-separated ids
+    if lang: params["lang"] = lang
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(
+            TODOIST_TASKS_URL,
+            headers={"Authorization": f"Bearer {token}"},
+            params=params
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+
+    # Return the full task objects (array)
+    return JSONResponse(resp.json())
