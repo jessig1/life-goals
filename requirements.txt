@@ -1,0 +1,5 @@
+fastapi 
+uvicorn 
+httpx 
+itsdangerous
+python-dotenv>=1.0
