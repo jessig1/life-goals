@@ -25,9 +25,9 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(auth.router)
-app.include_router(session.router)
-app.include_router(tasks.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(session.router, prefix="/api")
+app.include_router(tasks.router, prefix="/api")
 
 # Health
 @app.get("/api/health")

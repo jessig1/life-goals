@@ -5,7 +5,7 @@ from app.api.deps import get_access_token
 from app.core.csrf import require_csrf
 from app.services.todoist import create_task, list_tasks
 
-router = APIRouter(prefix="/api", tags=["tasks"])
+router = APIRouter(tags=["tasks"])
 
 @router.get("/tasks")
 async def get_tasks(

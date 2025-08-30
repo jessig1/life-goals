@@ -1,14 +1,20 @@
-from fastapi import APIRouter, Request
-from app.core.csrf import ensure_csrf
+# app/api/routes/session.py
 
-router = APIRouter(prefix="/api", tags=["session"])
+from fastapi import APIRouter, Request, Header, HTTPException
+from fastapi.responses import JSONResponse
+from app.core.csrf import ensure_csrf, require_csrf
+
+router = APIRouter(tags=["session"])
 
 @router.get("/session")
 def get_session(request: Request):
     csrf = ensure_csrf(request)
     return {"csrf": csrf, "authenticated": "todoist_access_token" in request.session}
 
-@router.get("/debug/session")
-def debug_session(request: Request):
-    return {"has_access_token": "todoist_access_token" in request.session,
-            "csrf": request.session.get("csrf")}
+@router.post("/logout")
+def logout(request: Request, x_csrf_token: str | None = Header(None)):
+    require_csrf(request, x_csrf_token)
+    request.session.pop("todoist_access_token", None)
+    request.session.pop("csrf", None)
+    # optional: rotate session id by writing something new
+    return JSONResponse({"ok": True})

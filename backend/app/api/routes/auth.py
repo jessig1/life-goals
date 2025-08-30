@@ -6,7 +6,7 @@ import secrets
 from app.core.config import settings
 from app.services.todoist import AUTH_URL, exchange_code_for_token
 
-router = APIRouter(prefix="/api", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 @router.get("/login")
 def login(request: Request):
