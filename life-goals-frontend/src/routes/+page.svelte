@@ -6,7 +6,7 @@
   let priority = 3;
   let msg = '';
   
-  export const ssr = false;
+ 
 
    // Get CSRF token and (optionally) auth status
   async function init() {
@@ -43,4 +43,5 @@
   </select>
   <button class="px-4 py-2 rounded bg-black text-white" on:click={createTask}>Create</button>
   <pre class="bg-gray-50 p-3 rounded whitespace-pre-wrap">{msg}</pre>
+  <a href={`${API_BASE}/login`}>Connect Todoist</a>
 </div>

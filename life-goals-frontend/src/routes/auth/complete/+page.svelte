@@ -1,15 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  const API = 'http://localhost:8000';
 
-  let status = 'Finishing sign-in...';
+  const API = '/api'; // if you’re using Vite proxy; else 'http://localhost:8000'
+  let status = 'Finalizing sign-in…';
 
   onMount(async () => {
-    // fetch CSRF + auth flag; cookie is now set by the backend
-    const r = await fetch(`${API}/session`, { credentials: 'include' });
-    const j = await r.json();
-    status = j.authenticated ? 'Connected to Todoist ✅' : 'Not connected ❌';
-  });
+  const r = await fetch(`${API}/session`, { credentials: 'include' });
+  const j = await r.json();
+  status = j.authenticated ? 'Connected ✅ Redirecting…' : 'Not connected ❌';
+  if (j.authenticated) {
+    setTimeout(() => window.location.href = '/tasks', 2000);
+  }
+});
+
+  function goToApp() {
+    // take them back to your app's home or /tasks
+    window.location.href = '/tasks';
+  }
 </script>
 
-<p class="p-4">{status}</p>
+<div class="min-h-screen flex flex-col items-center justify-center gap-6">
+  <h1 class="text-2xl font-bold">{status}</h1>
+  <button
+    on:click={goToApp}
+    class="px-6 py-3 rounded-xl bg-black text-white shadow hover:bg-gray-800"
+  >
+    Go to My Tasks
+  </button>
+</div>

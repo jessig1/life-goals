@@ -35,3 +35,8 @@
 </script>
 
 <!-- your markup/table here (unchanged), call {loadTasks()} on a Refresh button -->
+<a href="/api/login" class="px-3 py-2 rounded bg-black text-white">Connect Todoist</a>
+<button on:click={loadTasks} disabled={!authenticated}>Refresh</button>
+
+{#if errorMsg}<pre>{errorMsg}</pre>{/if}
+{#each tasks as t}<div>{t.content}</div>{/each}

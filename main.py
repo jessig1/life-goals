@@ -1,7 +1,7 @@
 import os
 import secrets
 from typing import Optional, List
-
+from urllib.parse import urlencode
 from fastapi import FastAPI, Request, Response, Depends, HTTPException, Header, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,30 +54,16 @@ def index(request: Request):
 def login(request: Request):
     state = secrets.token_urlsafe(24)
     request.session["oauth_state"] = state
+    scope = "data:read_write" 
+    params = {
+        "client_id": CLIENT_ID,
+        "scope": scope,
+        "state": state,
+        "redirect_uri": REDIRECT_URI,
+    }
+    
+    return RedirectResponse(f"{TODOIST_AUTH_URL}?{urlencode(params)}", status_code=302)
 
-    # Also set a non-HttpOnly cookie with the same state as a fallback
-    # (HttpOnly=False so you could read it on the client if ever needed,
-    # but you can set it True if you only compare server-side.)
-    resp = RedirectResponse(
-        url=(
-            f"{TODOIST_AUTH_URL}"
-            f"?client_id={CLIENT_ID}"
-            f"&scope=task:add"
-            f"&state={state}"
-            f"&redirect_uri={REDIRECT_URI}"
-        ),
-        status_code=302,
-    )
-    resp.set_cookie(
-        key="oauth_state",
-        value=state,
-        max_age=600,
-        secure=False,      # True in prod over HTTPS
-        httponly=True,     # fine to make True since we only read server-side
-        samesite="lax",
-        path="/"
-    )
-    return resp
 
 @app.get("/oauth/callback")
 async def oauth_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None):
@@ -167,6 +153,13 @@ def get_session(request: Request):
     csrf = ensure_csrf_token(request)
     authed = "todoist_access_token" in request.session
     return {"csrf": csrf, "authenticated": authed}
+
+@app.get("/debug/session")
+def debug_session(request: Request):
+    return {
+        "has_access_token": "todoist_access_token" in request.session,
+        "csrf": request.session.get("csrf")
+    }
 
 @app.get("/tasks")
 async def list_tasks(
