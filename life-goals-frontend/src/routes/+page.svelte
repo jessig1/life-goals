@@ -10,14 +10,14 @@
 
    // Get CSRF token and (optionally) auth status
   async function init() {
-    const res = await fetch(`${API_BASE}/session`, { credentials: 'include' });
+    const res = await fetch(`${API_BASE}/api/session`, { credentials: 'include' });
     const data = await res.json();
     csrf = data.csrf;
   }
   init();
 
   async function createTask() {
-    const res = await fetch('http://localhost:8000/create_task', {
+    const res = await fetch('http://localhost:8000/api/create_task', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -43,5 +43,5 @@
   </select>
   <button class="px-4 py-2 rounded bg-black text-white" on:click={createTask}>Create</button>
   <pre class="bg-gray-50 p-3 rounded whitespace-pre-wrap">{msg}</pre>
-  <a href={`${API_BASE}/login`}>Connect Todoist</a>
+  <a href={`${API_BASE}/api/login`}>Connect Todoist</a>
 </div>

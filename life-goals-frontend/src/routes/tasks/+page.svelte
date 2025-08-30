@@ -9,7 +9,7 @@
   let errorMsg = '';
 
   async function refreshSession() {
-    const r = await fetch(`${API}/session`, { credentials: 'include' });
+    const r = await fetch(`${API}/api/session`, { credentials: 'include' });
     const j = await r.json();
     csrf = j.csrf;
     authenticated = !!j.authenticated;
@@ -18,7 +18,7 @@
   async function loadTasks() {
     loading = true; errorMsg = ''; tasks = [];
     try {
-      const res = await fetch(`${API}/tasks`, { credentials: 'include' });
+      const res = await fetch(`${API}/api/tasks`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}\n${await res.text()}`);
       tasks = await res.json();
     } catch (e: any) {

@@ -5,7 +5,7 @@
   let status = 'Finalizing sign-in…';
 
   onMount(async () => {
-  const r = await fetch(`${API}/session`, { credentials: 'include' });
+  const r = await fetch(`${API}/api/session`, { credentials: 'include' });
   const j = await r.json();
   status = j.authenticated ? 'Connected ✅ Redirecting…' : 'Not connected ❌';
   if (j.authenticated) {
@@ -15,7 +15,7 @@
 
   function goToApp() {
     // take them back to your app's home or /tasks
-    window.location.href = '/tasks';
+    window.location.href = '/api/tasks';
   }
 </script>
 
