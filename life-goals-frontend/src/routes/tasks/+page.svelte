@@ -1,12 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  const API = 'http://localhost:8000';
+  const API = '/api';
 
-  let authenticated = false;
   let csrf = '';
-  let tasks: any[] = [];
-  let loading = false;
-  let errorMsg = '';
+  let authenticated = false;
+  let tasks:any[] = [];
+  let msg = '';
 
   async function refreshSession() {
     const r = await fetch(`${API}/session`, { credentials: 'include' });
@@ -16,27 +15,46 @@
   }
 
   async function loadTasks() {
-    loading = true; errorMsg = ''; tasks = [];
-    try {
-      const res = await fetch(`${API}/tasks`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}\n${await res.text()}`);
-      tasks = await res.json();
-    } catch (e: any) {
-      errorMsg = e.message || String(e);
-    } finally {
-      loading = false;
+    const r = await fetch(`${API}/tasks`, { credentials: 'include' });
+    if (!r.ok) {
+      msg = await r.text();
+      return;
     }
+    tasks = await r.json();
+  }
+
+  async function logout() {
+    const r = await fetch(`${API}/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRF-Token': csrf }
+    });
+    if (r.ok) window.location.href = '/';
   }
 
   onMount(async () => {
     await refreshSession();
-    if (authenticated) await loadTasks();
+    if (!authenticated) {
+      window.location.href = '/'; // route guard
+      return;
+    }
+    await loadTasks();
   });
 </script>
 
-<!-- your markup/table here (unchanged), call {loadTasks()} on a Refresh button -->
-<a href="/api/login" class="px-3 py-2 rounded bg-black text-white">Connect Todoist</a>
-<button on:click={loadTasks} disabled={!authenticated}>Refresh</button>
+<div class="max-w-6xl mx-auto p-6 space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">My Tasks</h1>
+    <button class="px-3 py-2 rounded bg-gray-200" on:click={logout}>Logout</button>
+  </div>
 
-{#if errorMsg}<pre>{errorMsg}</pre>{/if}
-{#each tasks as t}<div>{t.content}</div>{/each}
+  {#if msg}<pre class="bg-red-50 p-3 rounded">{msg}</pre>{/if}
+
+  {#if tasks.length === 0}
+    <div class="text-gray-600">No tasks found.</div>
+  {:else}
+    <ul class="list-disc ml-6">
+      {#each tasks as t}<li>{t.content}</li>{/each}
+    </ul>
+  {/if}
+</div>
