@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, HTTPException, Header, Query, Depends
 
 from app.api.deps import get_access_token
 from app.core.csrf import require_csrf
-from app.services.todoist import create_task, list_tasks
+from app.services.todoist import create_task, list_tasks, list_projects, list_sections
 
 router = APIRouter(tags=["tasks"])
 
@@ -28,6 +28,20 @@ async def get_tasks(
 
     try:
         return await list_tasks(token, params)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/projects")
+async def get_projects(token: str = Depends(get_access_token)):
+    try:
+        return await list_projects(token)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/sections")
+async def get_sections(project_id: Optional[str] = None, token: str = Depends(get_access_token)):
+    try:
+        return await list_sections(token, project_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
