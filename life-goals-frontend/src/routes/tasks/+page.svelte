@@ -312,11 +312,14 @@
 </script>
 
 <div class="max-w-6xl mx-auto p-6 space-y-4">
+
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-bold">My Tasks</h1>
     <div class="flex items-center gap-2">
       <a href="/tasks/new" class="px-3 py-2 rounded bg-blue-600 text-white">Create Task</a>
       <button class="px-3 py-2 rounded bg-gray-200" on:click={logout}>Logout</button>
+      <button class="px-3 py-2 rounded bg-green-600 text-white" on:click={() => window.location.href = '/api/notion/connect'}>Connect Notion</button>
+      <button class="px-3 py-2 rounded bg-red-600 text-white" on:click={() => window.location.href = '/api/login'}>Connect Todoist</button>
     </div>
   </div>
 
